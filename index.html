@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إصدار المستندات - لمكاني</title>
+    <link rel="icon" type="image/png" href="noti.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans Arabic', sans-serif;
+            background-color: #f7f3f0;
+            margin: 0;
+            padding: 0;
+        }
+
+        @media print {
+            body {
+                background-color: white !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .a4-page {
+                margin: 0 !important;
+                box-shadow: none !important;
+                width: 100% !important;
+                height: auto !important;
+                padding: 10mm !important;
+                border: none !important;
+            }
+            .hidden {
+                display: none !important;
+            }
+            table { page-break-inside: auto; }
+            tr { page-break-inside: avoid; page-break-after: auto; }
+            thead { display: table-header-group; }
+            .page-break-before {
+                page-break-before: always;
+                break-before: page;
+            }
+        }
+
+        .a4-page {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 15mm;
+            margin: 20px auto;
+            background: white;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            position: relative;
+            border: 1px solid #d7ccc8;
+        }
+
+        .a4-landscape {
+            width: 297mm !important;
+            min-height: 210mm !important;
+        }
+
+        .data-label {
+            font-weight: bold;
+            color: #5d4037;
+            min-width: 140px;
+            display: inline-block;
+        }
+        
+        .warn-label { color: #3e2723; }
+
+        .data-value {
+            color: #111827;
+            border-bottom: 1px dashed #d7ccc8;
+            flex-grow: 1;
+            padding-right: 10px;
+        }
+
+        .memo-table-header {
+            background-color: #3e2723 !important;
+            color: white !important;
+        }
+
+        .excel-table-wrapper table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            background-color: #fff;
+            margin-top: 1.5rem;
+            direction: rtl;
+        }
+        .excel-table-wrapper th, .excel-table-wrapper td {
+            border: 1px solid #5d4037;
+            padding: 8px;
+            text-align: center;
+            vertical-align: middle;
+        }
+        .excel-table-wrapper tr:first-child td, .excel-table-wrapper tr:first-child th {
+            background-color: #5d4037 !important;
+            color: white !important;
+            font-weight: bold;
+        }
+        .excel-table-wrapper tr:nth-child(even) {
+            background-color: #efebe9 !important;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-4xl mx-auto bg-white p-6 rounded-xl shadow-lg mb-10 no-print border-t-4 border-[#5d4037]" id="mainCard">
+        
+        <div class="flex justify-center mb-8 border-b pb-6">
+            <div class="inline-flex bg-gray-100 rounded-lg p-1 overflow-x-auto shadow-inner">
+                <button onclick="setDocumentType('debit')" id="btnDebit" class="px-6 py-2 rounded-md font-bold transition-colors bg-[#5d4037] text-white shadow whitespace-nowrap">
+                    إشعار خصم
+                </button>
+                <button onclick="setDocumentType('warning')" id="btnWarning" class="px-6 py-2 rounded-md font-bold transition-colors text-gray-600 hover:bg-gray-200 whitespace-nowrap">
+                    إنذار
+                </button>
+                <button onclick="setDocumentType('memo')" id="btnMemo" class="px-6 py-2 rounded-md font-bold transition-colors text-gray-600 hover:bg-gray-200 whitespace-nowrap">
+                    مذكرة داخلية
+                </button>
+                <button onclick="setDocumentType('delegate')" id="btnDelegate" class="px-6 py-2 rounded-md font-bold transition-colors text-gray-600 hover:bg-gray-200 whitespace-nowrap">
+                    حساب المناديب
+                </button>
+            </div>
+        </div>
+
+        <div id="debitInputs">
+            <h2 class="text-2xl font-bold mb-6 text-gray-800 border-b pb-3">إعداد إشعار الخصم (ر.س)</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">الاسم بالكامل</label>
+                    <input type="text" id="inputName" oninput="updatePreview()" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-[#5d4037] outline-none" placeholder="اسم العميل">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">رقم الطلب</label>
+                    <input type="text" id="inputOrder" oninput="updatePreview()" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-[#5d4037] outline-none" placeholder="مثلاً: ORDER-100">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">قيمة اللوحة الأساسية</label>
+                    <input type="number" id="inputBase" oninput="updatePreview()" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-[#5d4037] outline-none" placeholder="0.00">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">قيمة تصنيع اللوحة</label>
+                    <input type="number" id="inputMfg" oninput="updatePreview()" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-[#5d4037] outline-none" placeholder="0.00">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">قيمة الشحن</label>
+                    <input type="number" id="inputShipping" oninput="updatePreview()" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-[#5d4037] outline-none" placeholder="0.00">
+                </div>
+            </div>
+        </div>
+
+        <div id="warningInputs" class="hidden">
+            <h2 class="text-2xl font-bold mb-6 text-gray-800 border-b pb-3">إعداد صيغة الإنذار</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">الاسم</label>
+                    <input type="text" id="inputWarnName" oninput="updatePreview()" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-[#6d4c41] outline-none" placeholder="اسم الموجه له الإنذار">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">المرجع / المسمى</label>
+                    <input type="text" id="inputWarnRef" oninput="updatePreview()" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-[#6d4c41] outline-none" placeholder="رقم وظيفي، رقم طلب، أو المسمى">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">نوع / رقم الإنذار</label>
+                    <select id="inputWarnType" onchange="updatePreview()" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-[#6d4c41] outline-none bg-white">
+                        <option value="إنذار أول">إنذار أول</option>
+                        <option value="إنذار ثاني">إنذار ثاني</option>
+                        <option value="إنذار نهائي">إنذار نهائي</option>
+                    </select>
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">أسباب الإنذار والمخالفة</label>
+                    <textarea id="inputWarnReason" oninput="updatePreview()" rows="3" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-[#6d4c41] outline-none resize-none" placeholder="اكتب أسباب توجيه هذا الإنذار بوضوح..."></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div id="memoInputs" class="hidden">
+            <div class="flex justify-between items-end border-b pb-3 mb-6">
+                <h2 class="text-2xl font-bold text-gray-800">إعداد المذكرة الداخلية</h2>
+            </div>
+            
+            <div class="flex flex-wrap justify-center gap-6 mb-8 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <label class="flex items-center gap-2 cursor-pointer font-bold text-gray-700 hover:text-[#8d6e63] transition">
+                    <input type="radio" name="memoLang" value="both" checked onchange="updatePreview()" class="w-5 h-5 accent-[#8d6e63]">
+                    عربي وإنجليزي
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer font-bold text-gray-700 hover:text-[#8d6e63] transition">
+                    <input type="radio" name="memoLang" value="ar" onchange="updatePreview()" class="w-5 h-5 accent-[#8d6e63]">
+                    عربي فقط
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer font-bold text-gray-700 hover:text-[#8d6e63] transition">
+                    <input type="radio" name="memoLang" value="en" onchange="updatePreview()" class="w-5 h-5 accent-[#8d6e63]">
+                    إنجليزي فقط
+                </label>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <div><label class="block text-xs font-bold text-gray-500 mb-1">من (عربي)</label><input type="text" id="inMemoFromAr" oninput="updatePreview()" value="إدارة الموارد البشرية" class="w-full border p-2 rounded focus:ring-2 focus:ring-[#8d6e63] outline-none"></div>
+                <div><label class="block text-xs font-bold text-gray-500 mb-1">From (إنجليزي)</label><input type="text" id="inMemoFromEn" oninput="updatePreview()" value="Human Resources Department" class="w-full border p-2 rounded focus:ring-2 focus:ring-[#8d6e63] outline-none text-left" dir="ltr"></div>
+                <div><label class="block text-xs font-bold text-gray-500 mb-1">إلى (عربي)</label><input type="text" id="inMemoToAr" oninput="updatePreview()" value="جميع الموظفين" class="w-full border p-2 rounded focus:ring-2 focus:ring-[#8d6e63] outline-none"></div>
+                <div><label class="block text-xs font-bold text-gray-500 mb-1">To (إنجليزي)</label><input type="text" id="inMemoToEn" oninput="updatePreview()" value="All Employees" class="w-full border p-2 rounded focus:ring-2 focus:ring-[#8d6e63] outline-none text-left" dir="ltr"></div>
+                <div><label class="block text-xs font-bold text-gray-500 mb-1">نسخة إلى (عربي)</label><input type="text" id="inMemoCcAr" oninput="updatePreview()" value="الإدارات المعنية" class="w-full border p-2 rounded focus:ring-2 focus:ring-[#8d6e63] outline-none"></div>
+                <div><label class="block text-xs font-bold text-gray-500 mb-1">CC (إنجليزي)</label><input type="text" id="inMemoCcEn" oninput="updatePreview()" value="Relevant Departments" class="w-full border p-2 rounded focus:ring-2 focus:ring-[#8d6e63] outline-none text-left" dir="ltr"></div>
+                <div><label class="block text-xs font-bold text-gray-500 mb-1">الموضوع (عربي)</label><input type="text" id="inMemoSubAr" oninput="updatePreview()" value="إجازة عيد الفطر المبارك" class="w-full border p-2 rounded focus:ring-2 focus:ring-[#8d6e63] outline-none"></div>
+                <div><label class="block text-xs font-bold text-gray-500 mb-1">Subject (إنجليزي)</label><input type="text" id="inMemoSubEn" oninput="updatePreview()" value="Eid Al-Fitr Holiday" class="w-full border p-2 rounded focus:ring-2 focus:ring-[#8d6e63] outline-none text-left" dir="ltr"></div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><label class="block text-sm font-bold text-gray-700 mb-1">العنوان الرئيسي (عربي)</label><input type="text" id="inMemoTitleAr" oninput="updatePreview()" value='" عيد مبارك "' class="w-full border p-2 rounded focus:ring-2 focus:ring-[#8d6e63] outline-none text-center"></div>
+                <div><label class="block text-sm font-bold text-gray-700 mb-1">Main Title (English)</label><input type="text" id="inMemoTitleEn" oninput="updatePreview()" value='"Eid Mubarak"' class="w-full border p-2 rounded focus:ring-2 focus:ring-[#8d6e63] outline-none text-center" dir="ltr"></div>
+                <div><label class="block text-sm font-bold text-gray-700 mb-1">نص المذكرة (عربي)</label><textarea id="inMemoBodyAr" oninput="updatePreview()" rows="6" class="w-full border rounded p-3 focus:ring-2 focus:ring-[#8d6e63] outline-none resize-none" placeholder="اكتب محتوى المذكرة بالعربية هنا..."></textarea></div>
+                <div><label class="block text-sm font-bold text-gray-700 mb-1">Memo Body (English)</label><textarea id="inMemoBodyEn" oninput="updatePreview()" rows="6" class="w-full border rounded p-3 focus:ring-2 focus:ring-[#8d6e63] outline-none resize-none text-left" dir="ltr" placeholder="Type English content here..."></textarea></div>
+            </div>
+            <div class="mt-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <label class="block text-sm font-bold text-gray-700 mb-2 flex justify-between">
+                    <span>حجم خط النص:</span><span id="fontSizeDisplay" class="text-[#795548] font-black">14px</span>
+                </label>
+                <input type="range" id="inputMemoFontSize" min="10" max="24" value="14" step="1" class="w-full cursor-pointer accent-[#8d6e63]" oninput="updatePreview()">
+                <div class="flex justify-between text-xs text-gray-500 mt-1"><span>أصغر (10)</span><span>أكبر (24)</span></div>
+            </div>
+        </div>
+
+        <div id="delegateInputs" class="hidden">
+            <h2 class="text-2xl font-bold mb-6 text-gray-800 border-b pb-3">إعداد حساب المندوب</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">اسم المندوب</label>
+                    <input type="text" id="inputDelName" oninput="updatePreview()" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-[#5d4037] outline-none" placeholder="مثال: صالح جبران">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">شهر الحساب</label>
+                    <select id="inputDelMonth" onchange="updatePreview()" class="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-[#5d4037] outline-none bg-white">
+                        <option value="" disabled>اختر الشهر...</option>
+                        <option value="يناير 2026">يناير 2026</option>
+                        <option value="فبراير 2026">فبراير 2026</option>
+                        <option value="مارس 2026">مارس 2026</option>
+                        <option value="أبريل 2026" selected>أبريل 2026</option>
+                        <option value="مايو 2026">مايو 2026</option>
+                        <option value="يونيو 2026">يونيو 2026</option>
+                        <option value="يوليو 2026">يوليو 2026</option>
+                        <option value="أغسطس 2026">أغسطس 2026</option>
+                        <option value="سبتمبر 2026">سبتمبر 2026</option>
+                        <option value="أكتوبر 2026">أكتوبر 2026</option>
+                        <option value="نوفمبر 2026">نوفمبر 2026</option>
+                        <option value="ديسمبر 2026">ديسمبر 2026</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 p-4 bg-[#efebe9] rounded-lg border border-[#d7ccc8]">
+                <div>
+                    <label class="block text-xs font-bold text-[#5d4037] mb-1">سعر الفردي</label>
+                    <input type="number" id="inputSingleRate" oninput="updatePreview()" class="w-full border border-[#d7ccc8] p-2 rounded focus:ring-2 focus:ring-[#5d4037] outline-none text-center font-bold" value="20">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-[#5d4037] mb-1">عدد الفردي</label>
+                    <input type="number" id="inputSingleCount" oninput="updatePreview()" class="w-full border border-[#d7ccc8] p-2 rounded focus:ring-2 focus:ring-[#5d4037] outline-none text-center font-bold" placeholder="0">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-[#5d4037] mb-1">سعر المكرر</label>
+                    <input type="number" id="inputRepRate" oninput="updatePreview()" class="w-full border border-[#d7ccc8] p-2 rounded focus:ring-2 focus:ring-[#5d4037] outline-none text-center font-bold" value="10">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-[#5d4037] mb-1">عدد المكرر</label>
+                    <input type="number" id="inputRepCount" oninput="updatePreview()" class="w-full border border-[#d7ccc8] p-2 rounded focus:ring-2 focus:ring-[#5d4037] outline-none text-center font-bold" placeholder="0">
+                </div>
+            </div>
+
+            <div class="border-t pt-4">
+                <label class="block text-sm font-semibold text-gray-700 mb-2">إرفاق جدول اللوحات (ملف Excel)</label>
+                <input type="file" id="inputExcel" accept=".xlsx, .xls, .csv" onchange="handleExcelUpload(event)" class="w-full border border-gray-300 rounded-lg p-2 bg-white text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[#efebe9] file:text-[#5d4037] hover:file:bg-[#d7ccc8] transition">
+                <p class="text-xs text-gray-500 mt-2">سيتم إدراج الجدول في صفحة جديدة تحت التقرير تلقائياً.</p>
+            </div>
+        </div>
+
+        <div class="mt-8 flex gap-3">
+            <button onclick="printDocument()" id="btnPrint" class="flex-1 bg-[#5d4037] text-white font-bold py-3 rounded-lg hover:opacity-90 transition flex items-center justify-center gap-2 shadow-md">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                طباعة / حفظ PDF
+            </button>
+            <button onclick="resetForm()" class="px-6 bg-gray-100 text-gray-600 font-semibold py-3 rounded-lg hover:bg-gray-200 transition">
+                مسح البيانات
+            </button>
+        </div>
+    </div>
+
+
+    <div id="debitPrintArea" class="a4-page pb-32">
+        <img src="logo1.png" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[50%] opacity-[0.04] pointer-events-none z-0" alt="Watermark" onerror="this.style.display='none'">
+        
+        <div class="relative z-10 flex justify-between items-end border-b-2 border-gray-400 pb-2 mb-6">
+            <div class="w-1/3 text-right">
+                <h1 class="text-2xl font-black text-gray-900">لمكاني</h1>
+                <p class="text-xs text-gray-700 font-bold mt-1">سجل تجاري: 1010460174</p>
+            </div>
+            <div class="w-1/3 flex justify-center pb-1">
+                <img src="WhatsApp Image 2026-04-30 at 1.08.33 AM.jpeg" alt="Logo" class="max-h-16 object-contain" onerror="this.src='logo1.png'">
+            </div>
+            <div class="w-1/3 text-left" dir="ltr">
+                <h1 class="text-xl font-black text-gray-900 tracking-tight">lemakani</h1>
+                <p class="text-xs text-gray-700 font-bold mt-1">C.R: 1010460174</p>
+            </div>
+        </div>
+
+        <div class="relative z-10 flex justify-between items-center border-b-4 border-[#5d4037] pb-4 mb-10">
+            <div class="w-1/2">
+                <h1 class="text-3xl font-black text-[#5d4037] mb-1">إشعار خصم</h1>
+                <p class="text-lg text-[#6d4c41] font-bold uppercase tracking-widest">Debit Note</p>
+            </div>
+            <div class="w-1/2 flex justify-end">
+                <div class="text-right bg-[#efebe9]/50 p-3 rounded-lg border border-[#d7ccc8] flex gap-6">
+                    <div>
+                        <p class="font-bold text-sm text-[#5d4037]/60">الرقم التسلسلي:</p>
+                        <p id="debitSerialDisplay" class="text-lg font-mono font-bold text-[#795548]">--------</p>
+                    </div>
+                    <div>
+                        <p class="font-bold text-sm text-[#5d4037]/60">التاريخ:</p>
+                        <p id="debitDateDisplay" class="text-md font-bold text-gray-800 mt-1">--/--/----</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="relative z-10 space-y-8 mt-12">
+            <div class="flex items-end"><span class="data-label text-xl">السيد / السادة:</span><span id="displayName" class="data-value text-xl font-bold">..................................................................</span></div>
+            <div class="flex items-end"><span class="data-label text-xl">رقم الطلب:</span><span id="displayOrder" class="data-value text-xl font-bold">..................................................................</span></div>
+            <div class="grid grid-cols-2 gap-10 pt-10">
+                <div class="border-r-4 border-[#6d4c41]/20 pr-6">
+                    <h3 class="text-lg font-bold text-[#6d4c41] mb-4 border-b pb-2 border-[#6d4c41]/20">تفاصيل الفاتورة</h3>
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center"><span class="text-gray-600">قيمة اللوحة الأساسية:</span><span id="displayBase" class="font-bold text-lg text-[#5d4037]">0.00 ر.س</span></div>
+                        <div class="flex justify-between items-center"><span class="text-gray-600">قيمة التصنيع:</span><span id="displayMfg" class="font-bold text-lg text-[#5d4037]">0.00 ر.س</span></div>
+                        <div class="flex justify-between items-center"><span class="text-gray-600">قيمة الشحن:</span><span id="displayShipping" class="font-bold text-lg text-[#5d4037]">0.00 ر.س</span></div>
+                    </div>
+                </div>
+                <div class="bg-[#fafafa] border-2 border-[#d7ccc8] p-6 rounded-2xl flex flex-col justify-center items-center shadow-inner">
+                    <p class="text-[#3e2723] font-bold text-xl mb-3">إجمالي مبلغ الخصم</p>
+                    <div class="flex items-baseline gap-2"><span id="totalDiscount" class="text-5xl font-black text-[#5d4037] tracking-tighter">0.00</span><span class="text-xl font-bold text-[#5d4037]">ر.س</span></div>
+                    <p class="text-xs text-[#6d4c41] mt-4 font-medium italic">* (قيمة التصنيع + تكاليف الشحن)</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="absolute w-full px-16 z-20" style="bottom: 75px; left: 0;">
+            <div class="grid grid-cols-2 gap-20 text-center">
+                <div class="relative">
+                    <div class="border-t-2 border-gray-400 pt-2 relative z-10">
+                        <p class="font-bold text-[#5d4037] text-lg">توقيع المستلم</p>
+                        <p class="text-xs text-gray-500 mt-1">Recipient Signature</p>
+                    </div>
+                </div>
+                <div class="relative">
+                    <img src="logo2.png" class="mx-auto h-28 w-28 object-contain mix-blend-multiply opacity-90 mb-[-30px] relative z-0 pointer-events-none" alt="Stamp" onerror="this.style.display='none'">
+                    <div class="border-t-2 border-[#5d4037]/40 pt-2 relative z-10">
+                        <p class="font-bold text-[#5d4037] text-lg">الختم الرسمي</p>
+                        <p class="text-xs text-[#5d4037]/50 mt-1">Official Stamp</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="absolute bottom-0 left-0 right-0 w-full flex justify-between items-end text-xs font-bold border-t-2 border-gray-400 pt-3 bg-white px-12 pb-6 z-10">
+            <div class="text-right leading-tight text-gray-800"><p>المملكة العربية السعودية</p><p>الرياض</p><p>جوال: 0544782301</p></div>
+            <div class="text-center w-full absolute bottom-8 left-0 text-[#5d4037]/40 font-medium">هذا المستند صادر آلياً ولا يعتد به بدون الختم والتوقيع الرسمي</div>
+            <div class="text-left leading-tight text-gray-800" dir="ltr"><p>Saudi Arabia</p><p>Riyadh</p><p>Mobile: 0544782301</p></div>
+        </div>
+    </div>
+
+    <div id="warningPrintArea" class="a4-page hidden pb-32">
+        <img src="logo1.png" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[50%] opacity-[0.04] pointer-events-none z-0" alt="Watermark" onerror="this.style.display='none'">
+        
+        <div class="relative z-10 flex justify-between items-end border-b-2 border-gray-400 pb-2 mb-6">
+            <div class="w-1/3 text-right">
+                <h1 class="text-2xl font-black text-gray-900">لمكاني</h1>
+                <p class="text-xs text-gray-700 font-bold mt-1">سجل تجاري: 1010460174</p>
+            </div>
+            <div class="w-1/3 flex justify-center pb-1">
+                <img src="WhatsApp Image 2026-04-30 at 1.08.33 AM.jpeg" alt="Logo" class="max-h-16 object-contain" onerror="this.src='logo1.png'">
+            </div>
+            <div class="w-1/3 text-left" dir="ltr">
+                <h1 class="text-xl font-black text-gray-900 tracking-tight">lemakani</h1>
+                <p class="text-xs text-gray-700 font-bold mt-1">C.R: 1010460174</p>
+            </div>
+        </div>
+
+        <div class="relative z-10 flex justify-between items-center border-b-4 border-[#3e2723] pb-4 mb-8">
+            <div class="w-1/2">
+                <h1 class="text-3xl font-black text-[#3e2723] mb-1">إشعار إنذار</h1>
+                <p class="text-lg text-gray-600 font-bold uppercase tracking-widest">Warning Notice</p>
+            </div>
+            <div class="w-1/2 flex justify-end">
+                <div class="text-right bg-[#efebe9] p-3 rounded-lg border border-[#d7ccc8] flex gap-6">
+                    <div>
+                        <p class="font-bold text-sm text-[#3e2723]/70">رقم المرجع:</p>
+                        <p id="warnSerialDisplay" class="text-lg font-mono font-bold text-[#3e2723]">--------</p>
+                    </div>
+                    <div>
+                        <p class="font-bold text-sm text-[#3e2723]/70">التاريخ:</p>
+                        <p id="warnDateDisplay" class="text-md font-bold text-gray-800 mt-1">--/--/----</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="relative z-10 space-y-6 mt-8">
+            <div class="flex justify-center mb-6"><span id="displayWarnType" class="bg-[#3e2723] text-white px-8 py-2 rounded-full text-xl font-bold shadow-sm">إنذار أول</span></div>
+            <div class="flex items-end"><span class="data-label warn-label text-xl">الاسم:</span><span id="displayWarnName" class="data-value text-xl font-bold">..................................................................</span></div>
+            <div class="flex items-end"><span class="data-label warn-label text-xl">المرجع / المسمى:</span><span id="displayWarnRef" class="data-value text-xl font-bold">..................................................................</span></div>
+            <div class="mt-8">
+                <h3 class="text-lg font-bold text-[#3e2723] mb-3 flex items-center gap-2">أسباب توجيه الإنذار:</h3>
+                <div class="bg-gray-50/80 border border-gray-200 rounded-lg p-5 min-h-[120px]"><p id="displayWarnReason" class="text-gray-800 leading-relaxed text-lg whitespace-pre-wrap">لم يتم إدخال تفاصيل...</p></div>
+            </div>
+            <div class="mt-10 bg-[#efebe9]/80 border-r-4 border-[#3e2723] p-5 rounded-l-lg">
+                <h4 class="font-bold text-[#3e2723] mb-2">تنبيه هام:</h4>
+                <p class="text-[#3e2723] font-medium leading-relaxed">نوجه عنايتكم إلى ضرورة الالتزام التام بالتعليمات والقوانين المنظمة للعمل.<br/><strong class="text-[#3e2723] text-lg block mt-2">برجاء الالتزام التام بما يحقق مصلحة العمل.</strong></p>
+            </div>
+        </div>
+
+        <div class="absolute w-full px-16 z-20" style="bottom: 75px; left: 0;">
+            <div class="grid grid-cols-2 gap-20 text-center">
+                <div class="relative">
+                    <div class="border-t-2 border-[#3e2723]/30 pt-2 relative z-10">
+                        <p class="font-bold text-[#3e2723] text-lg">توقيع المستلم (بالاستلام)</p>
+                        <p class="text-xs text-[#3e2723]/50 mt-1">Recipient Signature</p>
+                    </div>
+                </div>
+                <div class="relative">
+                    <img src="logo2.png" class="mx-auto h-28 w-28 object-contain mix-blend-multiply opacity-90 mb-[-30px] relative z-0 pointer-events-none" alt="Stamp" onerror="this.style.display='none'">
+                    <div class="border-t-2 border-[#3e2723]/30 pt-2 relative z-10">
+                        <p class="font-bold text-[#3e2723] text-lg">الختم الرسمي</p>
+                        <p class="text-xs text-[#3e2723]/50 mt-1">Official Stamp</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="absolute bottom-0 left-0 right-0 w-full flex justify-between items-end text-xs font-bold border-t-2 border-gray-400 pt-3 bg-white px-12 pb-6 z-10">
+            <div class="text-right leading-tight text-gray-800"><p>المملكة العربية السعودية</p><p>الرياض</p><p>جوال: 0544782301</p></div>
+            <div class="text-left leading-tight text-gray-800" dir="ltr"><p>Saudi Arabia</p><p>Riyadh</p><p>Mobile: 0544782301</p></div>
+        </div>
+    </div>
+
+    <div id="memoPrintArea" class="a4-page hidden pb-32">
+        <img src="logo1.png" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[50%] opacity-[0.04] pointer-events-none z-0" alt="Watermark" onerror="this.style.display='none'">
+        
+        <div class="relative z-10 flex justify-between items-end border-b-2 border-gray-400 pb-2 mb-6">
+            <div class="w-1/3 text-right">
+                <h1 class="text-2xl font-black text-gray-900">لمكاني</h1>
+                <p class="text-xs text-gray-700 font-bold mt-1">سجل تجاري: 1010460174</p>
+            </div>
+            <div class="w-1/3 flex justify-center pb-1">
+                <img src="WhatsApp Image 2026-04-30 at 1.08.33 AM.jpeg" alt="Logo" class="max-h-16 object-contain" onerror="this.src='logo1.png'">
+            </div>
+            <div class="w-1/3 text-left" dir="ltr">
+                <h1 class="text-xl font-black text-gray-900 tracking-tight">lemakani</h1>
+                <p class="text-xs text-gray-700 font-bold mt-1">C.R: 1010460174</p>
+            </div>
+        </div>
+
+        <div class="relative z-10">
+            <div class="text-center mb-4"><h2 class="text-lg font-bold text-[#5d4037]">مذكرة داخلية / MEMO</h2></div>
+            <table class="w-full border-collapse border-2 border-black text-sm mb-4 bg-white/80">
+                <tbody>
+                    <tr class="memo-table-header">
+                        <td class="memo-ar-cell border border-black p-2 font-bold w-[15%] text-center whitespace-nowrap">من</td>
+                        <td class="memo-ar-cell border border-black p-2 font-bold text-right" id="outMemoFromAr">إدارة الموارد البشرية</td>
+                        <td class="memo-en-cell border border-black p-2 font-bold text-left" dir="ltr" id="outMemoFromEn">Human Resources Department</td>
+                        <td class="memo-en-cell border border-black p-2 font-bold w-[15%] text-center whitespace-nowrap" dir="ltr">From</td>
+                    </tr>
+                    <tr class="bg-white">
+                        <td class="memo-ar-cell border border-black p-2 text-center text-gray-600 font-semibold whitespace-nowrap">الى :</td>
+                        <td class="memo-ar-cell border border-black p-2 font-semibold text-right" id="outMemoToAr">جميع الموظفين</td>
+                        <td class="memo-en-cell border border-black p-2 font-semibold text-left" dir="ltr" id="outMemoToEn">All Employees</td>
+                        <td class="memo-en-cell border border-black p-2 text-center text-gray-600 font-semibold whitespace-nowrap" dir="ltr">To</td>
+                    </tr>
+                    <tr class="bg-[#f7f3f0]">
+                        <td class="memo-ar-cell border border-black p-2 text-center text-gray-600 font-semibold whitespace-nowrap">الموضوع :</td>
+                        <td class="memo-ar-cell border border-black p-2 font-bold text-right" id="outMemoSubAr">إجازة عيد الفطر المبارك</td>
+                        <td class="memo-en-cell border border-black p-2 font-bold text-left" dir="ltr" id="outMemoSubEn">Eid Al-Fitr Holiday</td>
+                        <td class="memo-en-cell border border-black p-2 text-center text-gray-600 font-semibold whitespace-nowrap" dir="ltr">Subject :</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="mb-4">
+                <div class="text-center mb-4"><h3 class="text-lg font-bold mb-1" id="outMemoTitleAr">" عيد مبارك "</h3><h3 class="text-lg font-bold" id="outMemoTitleEn">"Eid Mubarak"</h3></div>
+                <div class="flex border border-black min-h-[300px] h-auto bg-white/80">
+                    <div id="memoBodyArWrapper" class="w-1/2 p-4 text-right border-l border-black"><p id="outMemoBodyAr" class="whitespace-pre-wrap leading-relaxed text-gray-800 font-medium" style="font-size: 14px;"></p></div>
+                    <div id="memoBodyEnWrapper" class="w-1/2 p-4 text-left" dir="ltr"><p id="outMemoBodyEn" class="whitespace-pre-wrap leading-relaxed text-gray-800 font-medium" style="font-size: 14px;"></p></div>
+                </div>
+            </div>
+            
+            <div class="absolute left-16 z-20" style="bottom: 75px; width: 160px; text-align: center;">
+                <img src="logo2.png" class="mx-auto h-28 w-28 object-contain mix-blend-multiply opacity-90 mb-[-30px] relative z-0 pointer-events-none" alt="Stamp" onerror="this.style.display='none'">
+                <div class="border-t-2 border-[#5d4037]/40 pt-2 relative z-10">
+                    <p class="font-bold text-[#5d4037] text-lg">الختم الرسمي</p>
+                    <p class="text-xs text-[#5d4037]/50 mt-1">Official Stamp</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="absolute bottom-0 left-0 right-0 w-full flex justify-between items-end text-xs font-bold border-t-2 border-gray-400 pt-3 bg-white px-12 pb-6 z-10">
+            <div class="text-right leading-tight text-gray-800"><p>المملكة العربية السعودية</p><p>الرياض</p><p>جوال: 0544782301</p></div>
+            <div class="text-left leading-tight text-gray-800" dir="ltr"><p>Saudi Arabia</p><p>Riyadh</p><p>Mobile: 0544782301</p></div>
+        </div>
+    </div>
+
+    <div id="delegatePrintArea" class="a4-page a4-landscape hidden pb-32">
+        <img src="logo1.png" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[50%] opacity-[0.04] pointer-events-none z-0" alt="Watermark" onerror="this.style.display='none'">
+        
+        <div class="relative z-10 flex justify-between items-end border-b-2 border-gray-400 pb-2 mb-6">
+            <div class="w-1/3 text-right">
+                <h1 class="text-2xl font-black text-gray-900">لمكاني</h1>
+                <p class="text-xs text-gray-700 font-bold mt-1">سجل تجاري: 1010460174</p>
+            </div>
+            <div class="w-1/3 flex justify-center pb-1">
+                <img src="WhatsApp Image 2026-04-30 at 1.08.33 AM.jpeg" alt="Logo" class="max-h-16 object-contain" onerror="this.src='logo1.png'">
+            </div>
+            <div class="w-1/3 text-left" dir="ltr">
+                <h1 class="text-xl font-black text-gray-900 tracking-tight">lemakani</h1>
+                <p class="text-xs text-gray-700 font-bold mt-1">C.R: 1010460174</p>
+            </div>
+        </div>
+
+        <div class="relative z-10 flex justify-between items-center border-b-4 border-[#5d4037] pb-4 mb-8">
+            <div class="w-1/2">
+                <h1 class="text-3xl font-black text-[#5d4037] mb-1">حساب مندوب</h1>
+                <p class="text-lg text-gray-600 font-bold uppercase tracking-widest">Delegate Account</p>
+            </div>
+            <div class="w-1/2 flex justify-end">
+                <div class="text-right bg-[#efebe9] p-3 rounded-lg border border-[#d7ccc8] flex gap-6">
+                    <div>
+                        <p class="font-bold text-sm text-[#5d4037]/70">تاريخ الإصدار:</p>
+                        <p id="delDateDisplay" class="text-md font-bold text-gray-800 mt-1">--/--/----</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="relative z-10">
+            <div class="flex justify-center items-center mb-6 px-4 py-4 bg-gray-100 rounded-lg border border-gray-300 gap-10">
+                <div class="text-xl font-bold">
+                    <span class="text-gray-600">حساب مندوب:</span>
+                    <span id="outDelName" class="text-[#5d4037] mx-2 text-2xl">....................</span>
+                </div>
+                <div class="text-xl font-bold">
+                    <span class="text-gray-600">عن شهر:</span>
+                    <span id="outDelMonth" class="text-[#5d4037] mx-2 text-2xl">....................</span>
+                </div>
+            </div>
+
+            <table class="w-full border-collapse border-2 border-black text-center text-lg bg-white shadow-sm relative z-0">
+                <thead class="bg-gray-200">
+                    <tr>
+                        <th class="border border-black p-3 text-gray-800">سعر الفردي</th>
+                        <th class="border border-black p-3 text-gray-800">ع الفردي</th>
+                        <th class="border border-black p-3 text-[#5d4037]">حساب الفردي</th>
+                        <th class="border border-black p-3 text-gray-800">سعر المكرر</th>
+                        <th class="border border-black p-3 text-gray-800">ع المكرر</th>
+                        <th class="border border-black p-3 text-[#5d4037]">حساب المكرر</th>
+                        <th class="border border-black p-3 bg-[#d7ccc8] text-[#5d4037] font-black">كل الحساب</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="border border-black p-3 font-bold" id="outSingleRate">20</td>
+                        <td class="border border-black p-3 font-bold" id="outSingleCount">0</td>
+                        <td class="border border-black p-3 font-black text-[#5d4037]" id="outSingleTotal">0</td>
+                        <td class="border border-black p-3 font-bold" id="outRepRate">10</td>
+                        <td class="border border-black p-3 font-bold" id="outRepCount">0</td>
+                        <td class="border border-black p-3 font-black text-[#5d4037]" id="outRepTotal">0</td>
+                        <td class="border border-black p-4 font-black bg-[#d7ccc8] text-2xl text-[#5d4037]" id="outGrandTotal">0</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div id="excelTableContainer" class="excel-table-wrapper w-full overflow-x-auto mt-8 mb-48"></div>
+        </div>
+
+        <div class="absolute left-16 z-20" style="bottom: 75px; width: 160px; text-align: center;">
+            <img src="logo2.png" class="mx-auto h-28 w-28 object-contain mix-blend-multiply opacity-90 mb-[-30px] relative z-0 pointer-events-none" alt="Stamp" onerror="this.style.display='none'">
+            <div class="border-t-2 border-[#5d4037]/40 pt-2 relative z-10">
+                <p class="font-bold text-[#5d4037] text-lg">الختم الرسمي</p>
+                <p class="text-xs text-[#5d4037]/50 mt-1">Official Stamp</p>
+            </div>
+        </div>
+
+        <div class="absolute bottom-0 left-0 right-0 w-full flex justify-between items-end text-xs font-bold border-t-2 border-gray-400 pt-3 bg-white px-12 pb-6 z-10">
+            <div class="text-right leading-tight text-gray-800"><p>المملكة العربية السعودية</p><p>الرياض</p><p>جوال: 0544782301</p></div>
+            <div class="text-left leading-tight text-gray-800" dir="ltr"><p>Saudi Arabia</p><p>Riyadh</p><p>Mobile: 0544782301</p></div>
+        </div>
+    </div>
+
+    <script>
+        let currentDocType = 'debit'; 
+
+        const printStyle = document.createElement('style');
+        document.head.appendChild(printStyle);
+
+        function setDocumentType(type) {
+            currentDocType = type;
+            const btnDebit = document.getElementById('btnDebit');
+            const btnWarning = document.getElementById('btnWarning');
+            const btnMemo = document.getElementById('btnMemo');
+            const btnDelegate = document.getElementById('btnDelegate');
+            
+            const mainCard = document.getElementById('mainCard');
+            const btnPrint = document.getElementById('btnPrint');
+
+            [btnDebit, btnWarning, btnMemo, btnDelegate].forEach(btn => {
+                if(btn) btn.className = "px-6 py-2 rounded-md font-bold transition-colors text-gray-600 hover:bg-gray-200 whitespace-nowrap";
+            });
+
+            if (type === 'debit') {
+                btnDebit.className = "px-6 py-2 rounded-md font-bold transition-colors bg-[#5d4037] text-white shadow whitespace-nowrap";
+                btnPrint.className = "flex-1 bg-[#5d4037] text-white font-bold py-3 rounded-lg hover:opacity-90 transition flex items-center justify-center gap-2 shadow-md";
+                mainCard.className = "max-w-4xl mx-auto bg-white p-6 rounded-xl shadow-lg mb-10 no-print border-t-4 border-[#5d4037]";
+
+                document.getElementById('debitInputs').classList.remove('hidden');
+                document.getElementById('warningInputs').classList.add('hidden');
+                document.getElementById('memoInputs').classList.add('hidden');
+                document.getElementById('delegateInputs').classList.add('hidden');
+                
+                document.getElementById('debitPrintArea').classList.remove('hidden');
+                document.getElementById('warningPrintArea').classList.add('hidden');
+                document.getElementById('memoPrintArea').classList.add('hidden');
+                document.getElementById('delegatePrintArea').classList.add('hidden');
+            } 
+            else if (type === 'warning') {
+                btnWarning.className = "px-6 py-2 rounded-md font-bold transition-colors bg-[#3e2723] text-white shadow whitespace-nowrap";
+                btnPrint.className = "flex-1 bg-[#3e2723] text-white font-bold py-3 rounded-lg hover:opacity-90 transition flex items-center justify-center gap-2 shadow-md";
+                mainCard.className = "max-w-4xl mx-auto bg-white p-6 rounded-xl shadow-lg mb-10 no-print border-t-4 border-[#3e2723]";
+
+                document.getElementById('debitInputs').classList.add('hidden');
+                document.getElementById('warningInputs').classList.remove('hidden');
+                document.getElementById('memoInputs').classList.add('hidden');
+                document.getElementById('delegateInputs').classList.add('hidden');
+                
+                document.getElementById('debitPrintArea').classList.add('hidden');
+                document.getElementById('warningPrintArea').classList.remove('hidden');
+                document.getElementById('memoPrintArea').classList.add('hidden');
+                document.getElementById('delegatePrintArea').classList.add('hidden');
+            }
+            else if (type === 'memo') {
+                btnMemo.className = "px-6 py-2 rounded-md font-bold transition-colors bg-[#8d6e63] text-white shadow whitespace-nowrap";
+                btnPrint.className = "flex-1 bg-[#8d6e63] text-white font-bold py-3 rounded-lg hover:opacity-90 transition flex items-center justify-center gap-2 shadow-md";
+                mainCard.className = "max-w-4xl mx-auto bg-white p-6 rounded-xl shadow-lg mb-10 no-print border-t-4 border-[#8d6e63]";
+
+                document.getElementById('debitInputs').classList.add('hidden');
+                document.getElementById('warningInputs').classList.add('hidden');
+                document.getElementById('memoInputs').classList.remove('hidden');
+                document.getElementById('delegateInputs').classList.add('hidden');
+                
+                document.getElementById('debitPrintArea').classList.add('hidden');
+                document.getElementById('warningPrintArea').classList.add('hidden');
+                document.getElementById('memoPrintArea').classList.remove('hidden');
+                document.getElementById('delegatePrintArea').classList.add('hidden');
+            }
+            else if (type === 'delegate') {
+                btnDelegate.className = "px-6 py-2 rounded-md font-bold transition-colors bg-[#5d4037] text-white shadow whitespace-nowrap";
+                btnPrint.className = "flex-1 bg-[#5d4037] text-white font-bold py-3 rounded-lg hover:opacity-90 transition flex items-center justify-center gap-2 shadow-md";
+                mainCard.className = "max-w-4xl mx-auto bg-white p-6 rounded-xl shadow-lg mb-10 no-print border-t-4 border-[#5d4037]";
+
+                document.getElementById('debitInputs').classList.add('hidden');
+                document.getElementById('warningInputs').classList.add('hidden');
+                document.getElementById('memoInputs').classList.add('hidden');
+                document.getElementById('delegateInputs').classList.remove('hidden');
+                
+                document.getElementById('debitPrintArea').classList.add('hidden');
+                document.getElementById('warningPrintArea').classList.add('hidden');
+                document.getElementById('memoPrintArea').classList.add('hidden');
+                document.getElementById('delegatePrintArea').classList.remove('hidden');
+            }
+            
+            updatePreview();
+        }
+
+        function printDocument() {
+            if (currentDocType === 'delegate') {
+                printStyle.innerHTML = '@page { size: A4 landscape; margin: 5mm; }';
+            } else {
+                printStyle.innerHTML = '@page { size: A4 portrait; margin: 5mm; }';
+            }
+            window.print();
+        }
+
+        function generateSerial(prefix) {
+            const randomPart = Math.floor(1000 + Math.random() * 9000);
+            const datePart = new Date().getTime().toString().substr(-4);
+            return `${prefix}-${datePart}-${randomPart}`;
+        }
+
+        function handleExcelUpload(event) {
+            const file = event.target.files[0];
+            const container = document.getElementById('excelTableContainer');
+            if (!file) {
+                container.innerHTML = '';
+                container.classList.remove('page-break-before');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const htmlStr = XLSX.utils.sheet_to_html(workbook.Sheets[workbook.SheetNames[0]]);
+                    container.innerHTML = htmlStr;
+                    container.classList.add('page-break-before');
+                } catch (error) {
+                    alert("خطأ في قراءة الملف");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function updatePreview() {
+            if (currentDocType === 'debit') {
+                const name = document.getElementById('inputName').value;
+                const order = document.getElementById('inputOrder').value;
+                const base = parseFloat(document.getElementById('inputBase').value) || 0;
+                const mfg = parseFloat(document.getElementById('inputMfg').value) || 0;
+                const shipping = parseFloat(document.getElementById('inputShipping').value) || 0;
+                const total = mfg + shipping;
+
+                document.getElementById('displayName').textContent = name || "..................................................................";
+                document.getElementById('displayOrder').textContent = order || "..................................................................";
+                document.title = name ? "إشعار خصم - " + name : "إشعار خصم";
+
+                const formatter = new Intl.NumberFormat('ar-SA', { style: 'decimal', minimumFractionDigits: 2 });
+                document.getElementById('displayBase').textContent = formatter.format(base) + " ر.س";
+                document.getElementById('displayMfg').textContent = formatter.format(mfg) + " ر.س";
+                document.getElementById('displayShipping').textContent = formatter.format(shipping) + " ر.س";
+                document.getElementById('totalDiscount').textContent = formatter.format(total);
+            } 
+            else if (currentDocType === 'warning') {
+                const warnName = document.getElementById('inputWarnName').value;
+                document.getElementById('displayWarnName').textContent = warnName || "..................................................................";
+                document.getElementById('displayWarnRef').textContent = document.getElementById('inputWarnRef').value || "..................................................................";
+                document.getElementById('displayWarnType').textContent = document.getElementById('inputWarnType').value;
+                document.getElementById('displayWarnReason').textContent = document.getElementById('inputWarnReason').value || "لم يتم إدخال تفاصيل...";
+                document.title = warnName ? "إنذار - " + warnName : "إشعار إنذار";
+            }
+            else if (currentDocType === 'memo') {
+                ['FromAr', 'FromEn', 'ToAr', 'ToEn', 'SubAr', 'SubEn', 'TitleAr', 'TitleEn'].forEach(id => {
+                    document.getElementById('outMemo' + id).textContent = document.getElementById('inMemo' + id).value || ' ';
+                });
+                document.getElementById('outMemoBodyAr').textContent = document.getElementById('inMemoBodyAr').value;
+                document.getElementById('outMemoBodyEn').textContent = document.getElementById('inMemoBodyEn').value;
+                const fontSize = document.getElementById('inputMemoFontSize').value;
+                document.getElementById('fontSizeDisplay').textContent = fontSize + "px";
+                document.getElementById('outMemoBodyAr').style.fontSize = fontSize + "px";
+                document.getElementById('outMemoBodyEn').style.fontSize = fontSize + "px";
+            }
+            else if (currentDocType === 'delegate') {
+                const delName = document.getElementById('inputDelName').value;
+                document.getElementById('outDelName').textContent = delName || "....................";
+                document.getElementById('outDelMonth').textContent = document.getElementById('inputDelMonth').value;
+                const sRate = parseFloat(document.getElementById('inputSingleRate').value) || 0;
+                const sCount = parseFloat(document.getElementById('inputSingleCount').value) || 0;
+                const rRate = parseFloat(document.getElementById('inputRepRate').value) || 0;
+                const rCount = parseFloat(document.getElementById('inputRepCount').value) || 0;
+                document.getElementById('outSingleTotal').textContent = sRate * sCount;
+                document.getElementById('outRepTotal').textContent = rRate * rCount;
+                document.getElementById('outGrandTotal').textContent = (sRate * sCount) + (rRate * rCount);
+            }
+        }
+
+        function resetForm() {
+            location.reload();
+        }
+
+        window.onload = function() {
+            const today = new Date().toLocaleDateString('ar-SA');
+            document.getElementById('debitDateDisplay').textContent = today;
+            document.getElementById('warnDateDisplay').textContent = today;
+            document.getElementById('delDateDisplay').textContent = today;
+            document.getElementById('debitSerialDisplay').textContent = generateSerial('LMK-DN');
+            document.getElementById('warnSerialDisplay').textContent = generateSerial('WRN');
+            updatePreview();
+        };
+    </script>
+</body>
+</html>
